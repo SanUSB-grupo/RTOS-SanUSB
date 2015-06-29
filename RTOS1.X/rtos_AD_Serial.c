@@ -1,9 +1,11 @@
-#include "SanUSB48.h" // Vídeo: https://www.youtube.com/watch?v=6XXgR39VYCs
+#include "SanUSB48.h" //Vídeo: https://www.youtube.com/watch?v=c2WLafjximM
 #include <osa.h>
 
 #pragma interrupt interrupcao
 
-long int resultado;
+long int valor;
+unsigned char comando;
+int speed = 500;
 
 void interrupcao() {
 
@@ -33,63 +35,74 @@ void PIC_Init(void) {
 void Task_1(void) {
     while (1) { //ANALÓGICO DIGITAL(10 bits)
 
-        resultado = le_AD10bits(0);
-        sendnum(resultado);
-        if (resultado>=0 && resultado<=100){
-            OS_Delay(100);
+        valor = le_AD10bits(0);
+        //sendnum(valor);
+        printf("%ld\n\r",valor);
+        if (valor>=0 && valor<=300){
+            OS_Delay(speed);
             inverte_saida(pin_b5);
-        }else if(resultado>100){
-            OS_Delay(500);;
+            nivel_baixo(pin_b6);
+        }else if(valor>300 && valor<=800){
+            OS_Delay(speed);
+            inverte_saida(pin_b6);
+            nivel_baixo(pin_b5);
+        }else if(valor>800){
+            OS_Delay(speed);
+            inverte_saida(pin_b6);
             inverte_saida(pin_b5);
-        }       
-
+        }
     }
 
 }
 
 
 void Task_2(void) {
-    while (1) {
-        if (PIR1bits.RCIF) //Flag que indica byte na USART - Serial_avaliable()
-        {
-            PIR1bits.RCIF = 0; //reset flag
-            switch (RCREG)// byte recebido
-            {
-                case 'l': nivel_alto(pin_b7);
-                    break; //Chega l acende o led
+   while (1) {
+        if (serial_interrompeu)  {
+     serial_interrompeu=0;
+     comando = le_serial();
 
-                case 'd': nivel_baixo(pin_b7);
-                    break; //Chega d apaga o led
+         switch (comando){
+             case 'a':
+                speed = 600;
+             break;
+             case 'b':
+                speed = 300;
+             break;
+             case 'c':
+                speed = 100;
+             break;
 
-            }
-            break;
-
-        }
+         }
+   }
         OS_Delay(100);
     }
 }
 
+
 void Task_3(void) {
     while (1) {
-        inverte_saida(pin_b3);
-        OS_Delay(100);
+        inverte_saida(pin_b7);
+        OS_Delay(500);
     }
 }
 
 void main(void) {
     clock_int_48MHz();
+
     taxa_serial(19200);
     habilita_canal_AD(AN0);
+
 
     PIC_Init(); // Configurações gerais do PIC
 
     OS_Init();
-    TRISB = 0b00000000;
-    TRISA = 0b00000000;
+    //TRISB = 0b00000000;
+    //TRISA = 0b00000000;
 
     OS_Task_Create(1, Task_1); // Criando uma tarefa,  prioridade 1
     OS_Task_Create(2, Task_2); // Criando uma tarefa,  prioridade 2
-    OS_Task_Create(3, Task_3); // Criando uma tarefa,  prioridade 3   
+    OS_Task_Create(3, Task_3); // Criando uma tarefa,  prioridade 3
 
     OS_EI(); // Habilita interrupcpes
     OS_Run(); // Executa o RTOS
